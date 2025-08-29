@@ -1,0 +1,47 @@
+[project]
+name = "task-tg-bot"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Anton Golubchikov",email = "anton1programmist@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+]
+
+[tool.poetry]
+packages = [{include = "task_tg_bot", from = "src"}]
+
+
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.17.1"
+ruff = "^0.12.11"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+# Ruff configuration
+
+[tool.ruff]
+line-length = 100
+
+target-version = "py312"
+
+[tool.ruff.lint]
+# See list of rules at: https://docs.astral.sh/ruff/rules/
+select = ["F", "E", "W", "I", "B", "N", "D", "PT", "PYI", "RET", "RUF"]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 100
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+# Mypy configuration
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
