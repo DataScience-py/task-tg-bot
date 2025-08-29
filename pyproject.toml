@@ -8,6 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "python-telegram-bot (>=22.3,<23.0)"
 ]
 
 [tool.poetry]
