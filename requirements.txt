@@ -1,0 +1,15 @@
+anyio==4.10.0
+certifi==2025.8.3
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.10
+mypy==1.17.1
+mypy_extensions==1.1.0
+pathspec==0.12.1
+python-dotenv==1.1.1
+python-telegram-bot==22.3
+ruff==0.12.11
+sniffio==1.3.1
+-e git+https://github.com/DataScience-py/task-tg-bot.git@97c9003a0f78410c931b34bbbb0bec308c4aa1d8#egg=task_tg_bot
+typing_extensions==4.15.0
