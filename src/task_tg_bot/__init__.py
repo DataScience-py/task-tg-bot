@@ -158,36 +158,43 @@ async def date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Date choice date."""
     if context.user_data is None:
         return
+    query = update.callback_query
+    if query is None:
+        return
     if not context.user_data.get(config.LAST_SUBJECT, ""):
-        if update.message is not None:
-            await update.message.reply_text("Выберите предмет")
-    else:
-        query = update.callback_query
-        if query is None:
-            return
-        context.user_data[config.LAST_DATE] = query.data
-        reply_markup = generate_keyboard(
-            config.TASKS[context.user_data[config.LAST_SUBJECT]][
-                context.user_data[config.LAST_DATE]
-            ].keys()
-        )
-        print(reply_markup)
-        await query.edit_message_text("Выберите номер задания")
+        await query.edit_message_text("Сначала выберите предмет.")
+        reply_markup = generate_keyboard(config.SUBJECTS)
         await query.edit_message_reply_markup(reply_markup)
+        return
+    context.user_data[config.LAST_DATE] = query.data
+    reply_markup = generate_keyboard(
+        config.TASKS[context.user_data[config.LAST_SUBJECT]][
+            context.user_data[config.LAST_DATE]
+        ].keys()
+    )
+    print(reply_markup)
+    await query.edit_message_text("Выберите номер задания")
+    await query.edit_message_reply_markup(reply_markup)
 
 
 async def task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Task choice task."""
     if context.user_data is None:
         return
-    if not context.user_data.get(config.LAST_SUBJECT, ""):
-        print("Нет данных")
-        return
-    if not context.user_data.get(config.LAST_DATE, ""):
-        print("Нет данных")
-        return
     query = update.callback_query
     if query is None:
+        return
+    if not context.user_data.get(config.LAST_SUBJECT, ""):
+        await query.edit_message_text("Сначала выберите предмет.")
+        reply_markup = generate_keyboard(config.SUBJECTS)
+        await query.edit_message_reply_markup(reply_markup)
+        return
+    if not context.user_data.get(config.LAST_DATE, ""):
+        await query.edit_message_text("Сначала выберите дату.")
+        reply_markup = generate_keyboard(
+            config.TASKS[context.user_data[config.LAST_SUBJECT]].keys()
+        )
+        await query.edit_message_reply_markup(reply_markup)
         return
     context.user_data[config.LAST_TASK] = query.data
     if update.message is not None:
