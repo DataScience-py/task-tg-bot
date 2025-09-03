@@ -1,8 +1,16 @@
 """Init bot."""
 
+# TODO: change print to loging
+
+# imports
+
+import json
 import os
+from pathlib import Path
+from typing import Any
 
 import dotenv
+from pydantic import BaseModel
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     ApplicationBuilder,
@@ -12,30 +20,48 @@ from telegram.ext import (
     MessageHandler,
 )
 
-START_TEXT = """
+# load base configuration
+
+dotenv.load_dotenv(".env")
+
+TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+FILE_PATH: str = str(Path(__file__).parent / "data" / "tasks.json5")
+
+with open(FILE_PATH, "r", encoding="utf-8") as f:
+    temp_data: dict[str, Any] = json.load(f)
+
+
+class Config(BaseModel):
+    """Configuration for application."""
+
+    START_TEXT: str = """
 Привет, %s, Я бот, который проверяет ответы на правктические задания из канала @TipoBrain
 
 используйте команду /check и выбрите предмет, затем вам будет предложен выбор из нескольких дат, 
 одну в которой будет идти проверка заданий.
 
 """
+    CHECK_TEXT: str = """
+    выберите один из слудующих предметов
+    """
 
-CHECK_TEXT = """
-выберите один из слудующих предметов
-"""
+    # LOAD JSON FILE
 
-SUBJECTS = ["Математика", "Физика", "Информатика"]
+    SUBJECTS: list[str] = list(temp_data.keys())
 
-TASKS = {
-    SUBJECTS[0]: {"date": {"1": 5, "2": 5}},
-    SUBJECTS[1]: {},
-    SUBJECTS[2]: {},
-}  # TODO: добавить взятие данных из файлов
+    TASKS: dict[str, Any] = temp_data
+
+    DATE_STARTING: str = "date_"
+
+    LAST_SUBJECT: str = "LAST_SUBJECT"
+
+    LAST_DATE: str = "LAST_DATE"
 
 
-dotenv.load_dotenv(".env")
+config = Config()
 
-TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+# Commands
 
 
 async def start_command(
@@ -53,8 +79,9 @@ async def start_command(
     """
     if update.message is not None and update.effective_user is not None:
         await update.message.reply_text(
-            START_TEXT % (update.effective_user.full_name)
+            config.START_TEXT % update.effective_user.first_name
         )
+    print("Start command is worked")
 
 
 async def check_command(
@@ -71,54 +98,18 @@ async def check_command(
         messages
     """
     buttons = []
-    for i in SUBJECTS:
+    for i in config.SUBJECTS:
         buttons.append(InlineKeyboardButton(i, callback_data=i))
     reply_markup = InlineKeyboardMarkup([buttons])
 
     if update.message is not None and update.effective_user is not None:
-        await update.message.reply_text(CHECK_TEXT, reply_markup=reply_markup)
-
-
-async def math(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.callback_query is not None:
-        buttons = []
-        for i in TASKS[SUBJECTS[0]].keys():
-            buttons.append(InlineKeyboardButton(i, callback_data=i))
-        reply_markup = InlineKeyboardMarkup([buttons])
-        await update.callback_query.edit_message_text(
-            text=f"Вы выбрали {SUBJECTS[0]}.", reply_markup=reply_markup
+        await update.message.reply_text(
+            config.CHECK_TEXT, reply_markup=reply_markup
         )
+    print("Check command is worked")
 
 
-async def math_date(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    if update.callback_query is not None:
-        buttons = []
-        if (
-            context.user_data is None
-            and context.user_data.get("last_subject", None) is None
-        ):
-            print("Нет последней даты")
-        for i in TASKS[SUBJECTS[0]][context.user_data["last_date"]].keys():
-            buttons.append(InlineKeyboardButton(i, callback_data=i))
-        reply_markup = InlineKeyboardMarkup([buttons])
-        await update.callback_query.edit_message_text(
-            text=f"Вы выбрали {SUBJECTS[0]} с датой {update.callback_query.data}.",
-            reply_markup=reply_markup,
-        )
-
-
-async def math_task(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    if update.effective_chat is not None:
-        print("Work is None")
-        chat_id = update.effective_chat.id
-        await context.bot.send_message(
-            chat_id=chat_id, text="Напишите ответ на задание."
-        )
-    print("Work")
+# qery handlers
 
 
 async def handle_callback_query(
@@ -127,38 +118,35 @@ async def handle_callback_query(
     query = update.callback_query
     if query is not None:
         await query.answer()
-        if query.data == SUBJECTS[0]:
-            if context.user_data is not None:
-                context.user_data["last_subject"] = query.data
-            await math(update, context)
-        elif query.data == SUBJECTS[1]:
-            if context.user_data is not None:
-                context.user_data["last_subject"] = query.data
-            await query.edit_message_text(text=f"Вы выбрали {SUBJECTS[1]}.")
-        elif query.data == SUBJECTS[2]:
-            if context.user_data is not None:
-                context.user_data["last_subject"] = query.data
-            await query.edit_message_text(text=f"Вы выбрали {SUBJECTS[2]}.")
-        else:
-            if (
-                context.user_data is not None
-                and context.user_data.get("last_subject", None) is not None
-            ):
-                if context.user_data["last_subject"] == SUBJECTS[0]:
-                    if query.data.startswith("date"):
-                        context.user_data["last_date"] = query.data
-                        await math_date(update, context)
-                    else:
-                        context.user_data["TASK"] = query.data
-                        await math_task(update, context)
-                elif context.user_data["last_subject"] == SUBJECTS[1]:
-                    await query.edit_message_text(
-                        text=f"Вы выбрали {SUBJECTS[1]} с датой {query.data}."
-                    )
-                elif context.user_data["last_subject"] == SUBJECTS[2]:
-                    await query.edit_message_text(
-                        text=f"Вы выбрали {SUBJECTS[2]} с датой {query.data}."
-                    )
+        if context.user_data is None:
+            print("context is None")
+            return
+        if query.data in config.SUBJECTS:  # Предмет
+            # TODO change on funcion callback
+            context.user_data[config.LAST_SUBJECT] = query.data
+            await query.edit_message_text("Выберите дату для проверки заданий")
+        elif str(query.data).startswith(config.DATE_STARTING):  # Дата
+            if not context.user_data.get(config.LAST_SUBJECT, ""):
+                if update.message is not None:
+                    await update.message.reply_text("Выберите предмет")
+            else:
+                context.user_data[config.LAST_DATE] = query.data
+                await query.edit_message_text(
+                    "Выберите номер задания"
+                )
+        else:  # Номер задания
+            if not context.user_data.get(config.LAST_SUBJECT, ""):
+                if update.message is not None:
+                    await update.message.reply_text("Выберите предмет")
+                    return
+            elif not context.user_data.get(config.LAST_DATE, ""):
+                if update.message is not None:
+                    await update.message.reply_text("Выберите дату")
+                    return
+            context.user_data["TASK"] = query.data
+            if update.message is not None:
+                await update.message.reply_text("Напишите ответ на задание")
+    print(query)
 
 
 async def check_task_handler(
@@ -170,16 +158,20 @@ async def check_task_handler(
         and context.user_data is not None
         and context.user_data.get("TASK", None) is not None
     ):
-        correct_answer = TASKS[context.user_data["last_subject"]][
+        correct_answer = config.TASKS[context.user_data["last_subject"]][
             context.user_data["last_date"]
         ][context.user_data["TASK"]]
-        print(correct_answer)
         if update.message.text is not None:
-            if float(update.message.text) == float(correct_answer):
+            if str(update.message.text) == str(correct_answer).replace(
+                ".", ","
+            ):
                 await update.message.reply_text("Верно!")
             else:
                 await update.message.reply_text("Неверно! Попробуйте еще раз.")
-    print("fsd")
+    else:
+        if update.message is not None:
+            await update.message.reply_text("Сначала выберите предмет.")
+    print("check_task is worked")
 
 
 def run_bot() -> None:
