@@ -58,6 +58,8 @@ class Config(BaseModel):
 
     LAST_DATE: str = "LAST_DATE"
 
+    LAST_TASK: str = "TASK"
+
 
 config = Config()
 
@@ -97,16 +99,20 @@ async def check_command(
     context : ContextTypes.DEFAULT_TYPE
         messages
     """
-    buttons = []
-    for i in config.SUBJECTS:
-        buttons.append(InlineKeyboardButton(i, callback_data=i))
-    reply_markup = InlineKeyboardMarkup([buttons])
-
+    reply_markup = generate_keyboard(config.SUBJECTS)
     if update.message is not None and update.effective_user is not None:
         await update.message.reply_text(
             config.CHECK_TEXT, reply_markup=reply_markup
         )
     print("Check command is worked")
+
+
+def generate_keyboard(objects: list[Any]) -> InlineKeyboardMarkup:
+    """Generate keyboard for callback query."""
+    buttons = []
+    for i in objects:
+        buttons.append(InlineKeyboardButton(i, callback_data=i))
+    return InlineKeyboardMarkup([buttons])
 
 
 # qery handlers
@@ -115,52 +121,92 @@ async def check_command(
 async def handle_callback_query(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
+    """handle_callback_query handle callback query."""
     query = update.callback_query
+    print(query)
     if query is not None:
         await query.answer()
-        if context.user_data is None:
-            print("context is None")
-            return
         if query.data in config.SUBJECTS:  # Предмет
-            # TODO change on funcion callback
-            context.user_data[config.LAST_SUBJECT] = query.data
-            await query.edit_message_text("Выберите дату для проверки заданий")
+            await subject(update=update, context=context)
         elif str(query.data).startswith(config.DATE_STARTING):  # Дата
-            if not context.user_data.get(config.LAST_SUBJECT, ""):
-                if update.message is not None:
-                    await update.message.reply_text("Выберите предмет")
-            else:
-                context.user_data[config.LAST_DATE] = query.data
-                await query.edit_message_text(
-                    "Выберите номер задания"
-                )
+            await date(update=update, context=context)
         else:  # Номер задания
-            if not context.user_data.get(config.LAST_SUBJECT, ""):
-                if update.message is not None:
-                    await update.message.reply_text("Выберите предмет")
-                    return
-            elif not context.user_data.get(config.LAST_DATE, ""):
-                if update.message is not None:
-                    await update.message.reply_text("Выберите дату")
-                    return
-            context.user_data["TASK"] = query.data
-            if update.message is not None:
-                await update.message.reply_text("Напишите ответ на задание")
+            await task(update=update, context=context)
     print(query)
+
+
+async def subject(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Subject choice subject."""
+    if context.user_data is None:
+        print("context is None")
+        return
+    query = update.callback_query
+    if query is None:
+        print("query is None")
+        return
+    context.user_data[config.LAST_SUBJECT] = query.data
+    reply_markup = generate_keyboard(
+        config.TASKS[context.user_data[config.LAST_SUBJECT]].keys()
+    )
+    print(config.TASKS[context.user_data[config.LAST_SUBJECT]].keys())
+    await query.edit_message_text("Выберите дату для проверки заданий")
+    await query.edit_message_reply_markup(reply_markup)
+    print("subject is worked")
+
+
+async def date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Date choice date."""
+    if context.user_data is None:
+        return
+    if not context.user_data.get(config.LAST_SUBJECT, ""):
+        if update.message is not None:
+            await update.message.reply_text("Выберите предмет")
+    else:
+        query = update.callback_query
+        if query is None:
+            return
+        context.user_data[config.LAST_DATE] = query.data
+        reply_markup = generate_keyboard(
+            config.TASKS[context.user_data[config.LAST_SUBJECT]][
+                context.user_data[config.LAST_DATE]
+            ].keys()
+        )
+        print(reply_markup)
+        await query.edit_message_text("Выберите номер задания")
+        await query.edit_message_reply_markup(reply_markup)
+
+
+async def task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Task choice task."""
+    if context.user_data is None:
+        return
+    if not context.user_data.get(config.LAST_SUBJECT, ""):
+        print("Нет данных")
+        return
+    if not context.user_data.get(config.LAST_DATE, ""):
+        print("Нет данных")
+        return
+    query = update.callback_query
+    if query is None:
+        return
+    context.user_data[config.LAST_TASK] = query.data
+    if update.message is not None:
+        await update.message.reply_text("Напишите ответ на задание")
 
 
 async def check_task_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
+    """check_task_handler check user answer."""
     if (
         update.message is not None
         and context is not None
         and context.user_data is not None
-        and context.user_data.get("TASK", None) is not None
+        and context.user_data.get(config.LAST_TASK, None) is not None
     ):
-        correct_answer = config.TASKS[context.user_data["last_subject"]][
-            context.user_data["last_date"]
-        ][context.user_data["TASK"]]
+        correct_answer = config.TASKS[context.user_data[config.LAST_SUBJECT]][
+            context.user_data[config.LAST_DATE]
+        ][context.user_data[config.LAST_TASK]]
         if update.message.text is not None:
             if str(update.message.text) == str(correct_answer).replace(
                 ".", ","
