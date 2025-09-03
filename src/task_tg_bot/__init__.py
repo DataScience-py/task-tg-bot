@@ -197,8 +197,9 @@ async def task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await query.edit_message_reply_markup(reply_markup)
         return
     context.user_data[config.LAST_TASK] = query.data
-    if update.message is not None:
-        await update.message.reply_text("Напишите ответ на задание")
+    if update.callback_query is not None:
+        chat_id = update.callback_query.message.chat_id
+        await context.bot.send_message(chat_id=chat_id, text="Напишите ответ на задание")
 
 
 async def check_task_handler(
