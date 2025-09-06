@@ -287,7 +287,7 @@ async def check_task_handler(
                     await update.message.reply_text(
                         "Пожалуйста, отправьте файл в формате JSON."
                     )
-    elif (
+    if (
         update.message is not None
         and context is not None
         and context.user_data is not None
