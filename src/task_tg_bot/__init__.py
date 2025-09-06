@@ -25,6 +25,14 @@ from telegram.ext import (
 dotenv.load_dotenv(".env")
 
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
+if TELEGRAM_BOT_TOKEN == "":
+    raise ValueError("TELEGRAM_BOT_TOKEN is not set")
+
+
+ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "")
+if ADMIN_PASSWORD == "":
+    raise ValueError("ADMIN_PASSWORD is not set")
+
 
 FILE_PATH: str = str(Path(__file__).parent / "data" / "tasks.json5")
 
@@ -59,6 +67,15 @@ class Config(BaseModel):
     LAST_DATE: str = "LAST_DATE"
 
     LAST_TASK: str = "TASK"
+
+    ADMIN: str = "ADMIN"
+
+    admin: dict[str, Any] = {
+        "level0": 0,
+        "level1": 1,
+        "level2": 2,
+        "level3": 3,
+    }
 
 
 config = Config()
@@ -107,6 +124,25 @@ async def check_command(
     print("Check command is worked")
 
 
+async def admin_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    if context.user_data is None:
+        return
+    context.user_data[config.ADMIN] = (
+        config.admin["level1"]
+        if context.user_data.get(config.ADMIN, config.admin["level0"])
+        == config.admin["level0"]
+        else config.admin["level0"]
+    )
+    if (
+        update.message is not None
+        and context.user_data[config.ADMIN] == config.admin["level1"]
+    ):
+        await update.message.reply_text("Введите пароль")
+    print("admin_command is worked")
+
+
 def generate_keyboard(objects: list[Any]) -> InlineKeyboardMarkup:
     """Generate keyboard for callback query."""
     buttons = []
@@ -123,7 +159,6 @@ async def handle_callback_query(
 ) -> None:
     """handle_callback_query handle callback query."""
     query = update.callback_query
-    print(query)
     if query is not None:
         await query.answer()
         if query.data in config.SUBJECTS:  # Предмет
@@ -132,7 +167,6 @@ async def handle_callback_query(
             await date(update=update, context=context)
         else:  # Номер задания
             await task(update=update, context=context)
-    print(query)
 
 
 async def subject(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -148,7 +182,6 @@ async def subject(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     reply_markup = generate_keyboard(
         config.TASKS[context.user_data[config.LAST_SUBJECT]].keys()
     )
-    print(config.TASKS[context.user_data[config.LAST_SUBJECT]].keys())
     await query.edit_message_text("Выберите дату для проверки заданий")
     await query.edit_message_reply_markup(reply_markup)
     print("subject is worked")
@@ -172,7 +205,6 @@ async def date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             context.user_data[config.LAST_DATE]
         ].keys()
     )
-    print(reply_markup)
     await query.edit_message_text("Выберите номер задания")
     await query.edit_message_reply_markup(reply_markup)
 
@@ -197,16 +229,65 @@ async def task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await query.edit_message_reply_markup(reply_markup)
         return
     context.user_data[config.LAST_TASK] = query.data
+    if update.callback_query is None:
+        return
     if update.callback_query is not None:
-        chat_id = update.callback_query.message.chat_id
-        await context.bot.send_message(chat_id=chat_id, text="Напишите ответ на задание")
+        return
+    chat_id = update.callback_query.message.chat_id
+    await context.bot.send_message(
+        chat_id=chat_id, text="Напишите ответ на задание"
+    )
 
 
 async def check_task_handler(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """check_task_handler check user answer."""
-    if (
+    if context.user_data is not None:
+        admin_level = context.user_data.get(
+            config.ADMIN, config.admin["level0"]
+        )
+        if admin_level == config.admin["level1"]:
+            if update.message is not None and update.message.text is not None:
+                user_pw = update.message.text
+                if user_pw == ADMIN_PASSWORD:
+                    context.user_data[config.ADMIN] = config.admin["level2"]
+                else:
+                    context.user_data[config.ADMIN] = config.admin["level0"]
+                print("Admin is worked", context.user_data[config.ADMIN])
+        if admin_level == config.admin["level2"]:
+            print("Work 2 level")
+            if update.message and update.message.document is not None:
+                document = update.message.document
+
+                if document.mime_type == "application/json":
+                    # Загружаем файл
+                    file = await context.bot.get_file(document.file_id)
+
+                    # Скачиваем содержимое файла в байтах
+                    file_bytes = await file.download_as_bytearray()
+
+                    # Декодируем байты в строку, используя UTF-8
+                    json_string = file_bytes.decode("utf-8")
+                    # Шаг 2: Десериализация JSON
+                    try:
+                        # Преобразуем JSON-строку в Python-объект (словарь, список и т.д.)
+                        json_object = json.loads(json_string)
+                        # Теперь вы можете работать с json_object как с обычным Python-объектом
+                        await update.message.reply_text(
+                            "Файл успешно обработан."
+                        )
+                        load_new_task(json_object)
+
+                    except json.JSONDecodeError:
+                        await update.message.reply_text(
+                            "Ошибка при парсинге JSON файла."
+                        )
+                else:
+                    await update.message.reply_text(
+                        "Пожалуйста, отправьте файл в формате JSON."
+                    )
+    elif (
         update.message is not None
         and context is not None
         and context.user_data is not None
@@ -228,6 +309,21 @@ async def check_task_handler(
     print("check_task is worked")
 
 
+def load_new_task(js: dict[str, Any]) -> None:
+    for name_subject, value in js.items():
+        for date, task in value.items():
+            if not date.startswith(config.DATE_STARTING):
+                date = config.DATE_STARTING + date
+            if config.TASKS.get(name_subject, None) is not None:
+                config.TASKS[name_subject][date] = task
+            else:
+                config.TASKS[name_subject] = {date: task}
+    config.SUBJECTS = list(config.TASKS.keys())
+    with open(FILE_PATH, "w", encoding="utf-8") as f:
+        json.dump(config.TASKS, f, indent=4, ensure_ascii=False)
+    print("New task is loaded")
+
+
 def run_bot() -> None:
     """run_bot create a bot instance and run it."""
     global TELEGRAM_BOT_TOKEN
@@ -235,6 +331,7 @@ def run_bot() -> None:
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("check", check_command))
+    app.add_handler(CommandHandler("admin", admin_command))
 
     app.add_handler(MessageHandler(None, check_task_handler))
 
