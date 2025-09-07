@@ -1,7 +1,7 @@
 [project]
 name = "task-tg-bot"
 version = "0.1.0"
-description = ""
+description = "This is a bot for telegram chanel (@TipoBrain), work bot we can find @Geenniiuuss_bot"
 authors = [
     {name = "Anton Golubchikov",email = "anton1programmist@gmail.com"}
 ]
