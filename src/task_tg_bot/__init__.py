@@ -154,7 +154,7 @@ def generate_keyboard(objects: list[Any]) -> InlineKeyboardMarkup:
             row = []
     if row:
         keyboard.append(row)
-    return InlineKeyboardMarkup([keyboard])
+    return InlineKeyboardMarkup(keyboard)
 
 
 # qery handlers
