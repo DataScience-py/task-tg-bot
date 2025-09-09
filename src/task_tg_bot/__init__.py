@@ -237,8 +237,6 @@ async def task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data[config.LAST_TASK] = query.data
     if update.callback_query is None:
         return
-    if update.callback_query is not None:
-        return
     chat_id = update.callback_query.message.chat_id
     await context.bot.send_message(
         chat_id=chat_id, text="Напишите ответ на задание"
