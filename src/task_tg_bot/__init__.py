@@ -145,10 +145,16 @@ async def admin_command(
 
 def generate_keyboard(objects: list[Any]) -> InlineKeyboardMarkup:
     """Generate keyboard for callback query."""
-    buttons = []
-    for i in objects:
-        buttons.append(InlineKeyboardButton(i, callback_data=i))
-    return InlineKeyboardMarkup([buttons])
+    keyboard = []
+    row = []
+    for item in objects:
+        row.append(InlineKeyboardButton(item, callback_data=item))
+        if len(row) == 8:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    return InlineKeyboardMarkup([keyboard])
 
 
 # qery handlers
