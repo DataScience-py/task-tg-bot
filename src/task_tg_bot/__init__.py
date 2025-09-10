@@ -70,6 +70,8 @@ class Config(BaseModel):
 
     ADMIN: str = "ADMIN"
 
+    TASK_MESSAGE: str = "Вы выбрали предмет%s.\nс датой %s.\nи задание %s.\nНапишите ответ на задание"
+
     admin: dict[str, Any] = {
         "level0": 0,
         "level1": 1,
@@ -235,11 +237,17 @@ async def task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await query.edit_message_reply_markup(reply_markup)
         return
     context.user_data[config.LAST_TASK] = query.data
-    if update.callback_query is None:
+    if update.callback_query is None or update.callback_query.message is None:
         return
     chat_id = update.callback_query.message.chat_id
     await context.bot.send_message(
-        chat_id=chat_id, text="Напишите ответ на задание"
+        chat_id=chat_id,
+        text=config.TASK_MESSAGE
+        % (
+            context.user_data[config.LAST_SUBJECT],
+            context.user_data[config.LAST_DATE],
+            context.user_data[config.LAST_TASK],
+        ),
     )
 
 
